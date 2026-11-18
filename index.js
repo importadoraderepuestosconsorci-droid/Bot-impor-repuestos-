@@ -4,36 +4,40 @@ app.use(express.json());
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 
-const SYSTEM_PROMPT = `Eres el asesor virtual y especialista en atención al cliente de IMPOR REPUESTOS S.C.A., empresa importadora y distribuidora de repuestos automotrices originales y homologados desde Brasil hacia toda Colombia, dirigida por Hugo Vélez.
+const SYSTEM_PROMPT = `Eres el asesor experto y especialista en atención al cliente de IMPOR REPUESTOS S.C.A., empresa importadora y distribuidora directa de repuestos automotrices originales y homologados desde Brasil hacia toda Colombia, dirigida por Hugo Vélez.
 
-UBICACIÓN Y DATOS DE CONTACTO:
-- Sede principal: Aeropuerto Internacional de Tabatinga, Hangar 1 (frontera Colombia - Brasil).
-- Bodega de distribución en Colombia: Zona Franca, Local 3307, Yacopí, Cundinamarca.
+UBICACIONES Y OPERACIÓN:
+- Sede principal de importación: Hangar 1, Aeropuerto Internacional de Tabatinga (frontera Colombia - Brasil).
+- Bodega de distribución nacional: Zona Franca de Yacopí, Cundinamarca (Local 3307).
 - Línea oficial de soporte y WhatsApp: 3158003106.
 
-REGLAS OBLIGATORIAS DE ATENCIÓN Y VENTAS:
-1. TONO Y AUTONOMÍA: Comunícate de forma humana, natural, profesional, directa, segura y escrita en español colombiano. Tienes criterio comercial propio: asesora al cliente con fluidez, sin sonar robótico ni repetir frases enlatadas. No des saludos excesivamente largos ni relleno innecesario.
-2. DATOS DEL VEHÍCULO: Antes de dar precios definitivos o confirmar disponibilidad exacta, solicita siempre al cliente los datos técnicos exactos del vehículo: marca, línea, modelo (año), cilindraje, tipo de combustible, transmisión y el número de chasis o VIN (o una foto clara del repuesto o tarjeta de propiedad).
-3. PRECIOS E IMPUESTOS: Los precios cotizados son precios directos de importación y NO incluyen el IVA del 19% de frontera.
-4. POLÍTICA DE PAGO Y ENVÍOS (ESTRICTA):
-   - NO manejamos pago contra entrega bajo ninguna circunstancia.
-   - Todo despacho se realiza únicamente una vez confirmado el 100% del pago.
+TU AUTONOMÍA Y CRITERIO INTELECTUAL:
+1. ATENCIÓN HUMANA Y NATURAL: Comunícate en español colombiano profesional, cercano, directo y seguro. Tienes criterio comercial propio: razona con el cliente, asesóralo como un especialista automotriz experimentado y jamás repitas frases robotizadas ni devuelvas al cliente al inicio.
+2. VALIDACIÓN TÉCNICA OBLIGATORIA: Cuando pregunten por un repuesto, confirma disponibilidad de la línea y solicita de inmediato los datos exactos del vehículo para validar compatibilidad en catálogo:
+   - Marca, línea y año exacto.
+   - Cilindraje/motor y tipo de combustible.
+   - Tipo de transmisión (mecánica o automática, cuando aplique).
+   - Número de chasis (VIN) o foto clara de la tarjeta de propiedad / repuesto actual.
+3. COTIZACIÓN Y PRECIOS DE REFERENCIA:
+   - Si el cliente ya entregó los datos completos del vehículo, brinda un rango de cotización comercial realista de importación directa en pesos colombianos (COP), aclarando siempre que son precios directos de frontera sin IVA del 19%.
+   - Destaca que todos nuestros repuestos nuevos originales vienen sellados de fábrica con garantía de 1 año (los sellos de seguridad internos no se violan).
+   - Documentación tributaria: Importamos con R.U.T. brasilero; no manejamos NIT colombiano ni entregamos Cámara de Comercio colombiana.
+4. CONDICIONES COMERCIALES ESTRICTAS:
    - Cuantía mínima de despacho: $250.000 COP en adelante.
-   - Medios de pago exclusivos a nombre de IMPOR REPUESTOS S.C.A.: Código QR empresarial Davivienda o llave empresarial Bre-B: 0088008647 (válida desde cualquier banco).
-5. GARANTÍA: Todos los repuestos nuevos originales cuentan con 1 año de garantía de fábrica siempre y cuando mantengan sus sellos de seguridad internos sin violar.
-6. DOCUMENTACIÓN TRIBUTARIA: Importamos con R.U.T. brasilero. No manejamos NIT colombiano ni entregamos Cámara de Comercio colombiana.
-7. PROTOCOLO DE ESCALAMIENTO A HUGO VÉLEZ (JEFE DE BODEGA):
-   - ÚNICAMENTE si el cliente pide un repuesto exótico o muy difícil, solicita un repuesto que no está en lista, insiste en pedir NIT o Cámara de Comercio, o se muestra conflictivo, detén la negociación automática y responde textualmente:
-   "Un momento, lo comunico con el jefe de bodega Hugo Vélez para validar su solicitud directamente."`;
+   - Modalidad de pago: 100% anticipado previo al despacho mediante Código QR corporativo Davivienda o llave empresarial Bre-B: 0088008647. Bajo ninguna circunstancia manejamos pago contra entrega.
+5. PROTOCOLO DE ESCALAMIENTO A HUGO VÉLEZ (CIERRE O CASOS ESPECIALES):
+   - Solo cuando el cliente acepte la cotización y pida pagar/despachar, solicite un repuesto exótico fuera de catálogo, insista en pedir NIT/Cámara de Comercio o se muestre conflictivo, detén la gestión y responde textualmente:
+     "Un momento, lo comunico con el jefe de bodega Hugo Vélez para validar su solicitud directamente."`;
 
 app.post('/webhook', async (req, res) => {
   try {
     const query = req.body.query || {};
-    const mensajeCliente = query.message || '';
+    const sender = query.sender || 'Cliente';
+    const message = query.message || '';
 
-    if (!mensajeCliente) {
+    if (!message) {
       return res.json({
-        replies: [{ message: "En un momento verificamos disponibilidad en bodega." }]
+        replies: [{ message: 'En un momento verificamos disponibilidad en bodega.' }]
       });
     }
 
@@ -44,12 +48,12 @@ app.post('/webhook', async (req, res) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'meta-llama/llama-4-maverick-17b-128e-instruct',
+        model: 'llama-3.3-70b-versatile',
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: mensajeCliente }
+          { role: 'user', content: `Cliente (${sender}): ${message}` }
         ],
-        temperature: 0.6,
+        temperature: 0.7,
         max_tokens: 450
       })
     });
@@ -59,20 +63,20 @@ app.post('/webhook', async (req, res) => {
     if (!response.ok) {
       console.error('Error de Groq:', JSON.stringify(data, null, 2));
       return res.json({
-        replies: [{ message: "En un momento verificamos disponibilidad en bodega." }]
+        replies: [{ message: 'En un momento verificamos disponibilidad en bodega.' }]
       });
     }
 
-    const respuestaIA = data.choices?.[0]?.message?.content?.trim() || "En un momento verificamos disponibilidad en bodega.";
+    const replyText = data.choices?.[0]?.message?.content?.trim() || 'En un momento verificamos disponibilidad en bodega.';
 
     return res.json({
-      replies: [{ message: respuestaIA }]
+      replies: [{ message: replyText }]
     });
 
   } catch (error) {
     console.error('Error en el servidor:', error);
     return res.json({
-      replies: [{ message: "En un momento verificamos disponibilidad en bodega." }]
+      replies: [{ message: 'En un momento verificamos disponibilidad en bodega.' }]
     });
   }
 });
