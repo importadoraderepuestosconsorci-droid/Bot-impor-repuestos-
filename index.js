@@ -90,3 +90,18 @@ const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`Servidor de IMPOR REPUESTOS corriendo en puerto ${PORT}`);
 });
+app.get('/webhook', (req, res) => {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+
+  // Esta es tu clave secreta. Puedes cambiarla por la que quieras.
+  const VERIFY_TOKEN = 'impor_repuestos_123';
+
+  if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+    console.log('Webhook verificado con éxito');
+    res.status(200).send(challenge);
+  } else {
+    res.sendStatus(403);
+  }
+});
