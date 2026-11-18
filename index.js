@@ -12,14 +12,14 @@ UBICACIONES Y OPERACIÓN:
 - Línea oficial de soporte y WhatsApp: 3158003106.
 
 TU AUTONOMÍA Y CRITERIO INTELECTUAL:
-1. ATENCIÓN HUMANA Y NATURAL: Comunícate en español colombiano profesional, cercano, directo y seguro. Tienes criterio comercial propio: razona con el cliente, asesóralo como un especialista automotriz experimentado y jamás repitas frases robotizadas ni devuelvas al cliente al inicio.
+1. ATENCIÓN HUMANA Y NATURAL: Comunícate en español colombiano profesional, cercano, directo y seguro. Tienes criterio comercial propio: asesora al cliente como un especialista automotriz experimentado y jamás repitas frases robotizadas ni devuelvas al cliente al inicio.
 2. VALIDACIÓN TÉCNICA OBLIGATORIA: Cuando pregunten por un repuesto, confirma disponibilidad de la línea y solicita de inmediato los datos exactos del vehículo para validar compatibilidad en catálogo:
    - Marca, línea y año exacto.
    - Cilindraje/motor y tipo de combustible.
    - Tipo de transmisión (mecánica o automática, cuando aplique).
    - Número de chasis (VIN) o foto clara de la tarjeta de propiedad / repuesto actual.
-3. COTIZACIÓN Y PRECIOS DE REFERENCIA:
-   - Si el cliente ya entregó los datos completos del vehículo, brinda un rango de cotización comercial realista de importación directa en pesos colombianos (COP), aclarando siempre que son precios directos de frontera sin IVA del 19%.
+3. COTIZACIÓN Y PRECIOS DE REFERENCIA WEB:
+   - Si el cliente ya entregó los datos completos del vehículo, brinda un rango de cotización comercial realista de importación directa en pesos colombianos (COP) basado en referencias del mercado automotriz para esa pieza, aclarando siempre que son precios directos de frontera sin IVA del 19%.
    - Destaca que todos nuestros repuestos nuevos originales vienen sellados de fábrica con garantía de 1 año (los sellos de seguridad internos no se violan).
    - Documentación tributaria: Importamos con R.U.T. brasilero; no manejamos NIT colombiano ni entregamos Cámara de Comercio colombiana.
 4. CONDICIONES COMERCIALES ESTRICTAS:
@@ -28,6 +28,38 @@ TU AUTONOMÍA Y CRITERIO INTELECTUAL:
 5. PROTOCOLO DE ESCALAMIENTO A HUGO VÉLEZ (CIERRE O CASOS ESPECIALES):
    - Solo cuando el cliente acepte la cotización y pida pagar/despachar, solicite un repuesto exótico fuera de catálogo, insista en pedir NIT/Cámara de Comercio o se muestre conflictivo, detén la gestión y responde textualmente:
      "Un momento, lo comunico con el jefe de bodega Hugo Vélez para validar su solicitud directamente."`;
+
+async function consultarGroq(modelo, sender, message) {
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${GROQ_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: modelo,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: `Cliente (${sender}): ${message}` }
+      ],
+      temperature: 0.6,
+      max_tokens: 450
+    })
+  });
+  const data = await response.json();
+  return { ok: response.ok, data };
+}
+
+async function obtenerModeloActivo() {
+  const res = await fetch('https://api.groq.com/openai/v1/models', {
+    headers: { 'Authorization': `Bearer ${GROQ_API_KEY}` }
+  });
+  const list = await res.json();
+  const activos = (list.data || [])
+    .map(m => m.id)
+    .filter(id => !id.includes('whisper') && !id.includes('guard') && !id.includes('tts'));
+  return activos.find(id => id.includes('gemma')) || activos[0];
+}
 
 app.post('/webhook', async (req, res) => {
   try {
@@ -41,33 +73,23 @@ app.post('/webhook', async (req, res) => {
       });
     }
 
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${GROQ_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: `Cliente (${sender}): ${message}` }
-        ],
-        temperature: 0.65,
-        max_tokens: 450
-      })
-    });
+    let resultado = await consultarGroq('gemma2-9b-it', sender, message);
 
-    const data = await response.json();
+    if (!resultado.ok && resultado.data?.error?.code === 'model_not_found') {
+      const modeloAlterno = await obtenerModeloActivo();
+      if (modeloAlterno) {
+        resultado = await consultarGroq(modeloAlterno, sender, message);
+      }
+    }
 
-    if (!response.ok) {
-      console.error('Error de Groq:', JSON.stringify(data, null, 2));
+    if (!resultado.ok) {
+      console.error('Error de Groq:', JSON.stringify(resultado.data, null, 2));
       return res.json({
         replies: [{ message: 'En un momento verificamos disponibilidad en bodega.' }]
       });
     }
 
-    const replyText = data.choices?.[0]?.message?.content?.trim() || 'En un momento verificamos disponibilidad en bodega.';
+    const replyText = resultado.data.choices?.[0]?.message?.content?.trim() || 'En un momento verificamos disponibilidad en bodega.';
 
     return res.json({
       replies: [{ message: replyText }]
