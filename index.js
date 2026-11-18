@@ -48,12 +48,12 @@ app.post('/webhook', async (req, res) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: 'llama-3.1-8b-instant',
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
           { role: 'user', content: `Cliente (${sender}): ${message}` }
         ],
-        temperature: 0.7,
+        temperature: 0.65,
         max_tokens: 450
       })
     });
