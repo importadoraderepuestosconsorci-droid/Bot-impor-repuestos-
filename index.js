@@ -29,38 +29,6 @@ TU AUTONOMÍA Y CRITERIO INTELECTUAL:
    - Solo cuando el cliente acepte la cotización y pida pagar/despachar, solicite un repuesto exótico fuera de catálogo, insista en pedir NIT/Cámara de Comercio o se muestre conflictivo, detén la gestión y responde textualmente:
      "Un momento, lo comunico con el jefe de bodega Hugo Vélez para validar su solicitud directamente."`;
 
-async function consultarGroq(modelo, sender, message) {
-  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${GROQ_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      model: modelo,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: `Cliente (${sender}): ${message}` }
-      ],
-      temperature: 0.6,
-      max_tokens: 450
-    })
-  });
-  const data = await response.json();
-  return { ok: response.ok, data };
-}
-
-async function obtenerModeloActivo() {
-  const res = await fetch('https://api.groq.com/openai/v1/models', {
-    headers: { 'Authorization': `Bearer ${GROQ_API_KEY}` }
-  });
-  const list = await res.json();
-  const activos = (list.data || [])
-    .map(m => m.id)
-    .filter(id => !id.includes('whisper') && !id.includes('guard') && !id.includes('tts'));
-  return activos.find(id => id.includes('gemma')) || activos[0];
-}
-
 app.post('/webhook', async (req, res) => {
   try {
     const query = req.body.query || {};
@@ -73,23 +41,34 @@ app.post('/webhook', async (req, res) => {
       });
     }
 
-    let resultado = await consultarGroq('gemma2-9b-it', sender, message);
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GROQ_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'qwen/qwen3.8-27b',
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: `Cliente (${sender}): ${message}` }
+        ],
+        temperature: 0.6,
+        max_tokens: 450
+      })
+    });
 
-    if (!resultado.ok && resultado.data?.error?.code === 'model_not_found') {
-      const modeloAlterno = await obtenerModeloActivo();
-      if (modeloAlterno) {
-        resultado = await consultarGroq(modeloAlterno, sender, message);
-      }
-    }
+    const data = await response.json();
 
-    if (!resultado.ok) {
-      console.error('Error de Groq:', JSON.stringify(resultado.data, null, 2));
+    if (!response.ok) {
+      console.error('Error de Groq:', JSON.stringify(data, null, 2));
       return res.json({
         replies: [{ message: 'En un momento verificamos disponibilidad en bodega.' }]
       });
     }
 
-    const replyText = resultado.data.choices?.[0]?.message?.content?.trim() || 'En un momento verificamos disponibilidad en bodega.';
+    let replyText = data.choices?.[0]?.message?.content?.trim() || 'En un momento verificamos disponibilidad en bodega.';
+    replyText = replyText.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
 
     return res.json({
       replies: [{ message: replyText }]
