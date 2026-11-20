@@ -75,7 +75,7 @@ app.post('/webhook', async (req, res) => {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Authorization': 'Bearer ' + process.env.OPENAI_API_KEY,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -92,6 +92,7 @@ app.post('/webhook', async (req, res) => {
     const data = await response.json();
 
     if (!response.ok || !data.choices?.[0]?.message?.content) {
+      console.error('DETALLE ERROR OPENAI:', JSON.stringify(data));
       throw new Error('Fallo en respuesta de OpenAI');
     }
 
@@ -111,6 +112,7 @@ app.post('/webhook', async (req, res) => {
     return res.sendStatus(200);
 
   } catch (error) {
+    console.error('ERROR EN WEBHOOK:', error.message);
     if (req.body?.query) {
       return res.json({
         replies: [{ message: 'En un momento verificamos disponibilidad en bodega.' }]
@@ -136,7 +138,6 @@ app.get('/', (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Servidor corriendo en puerto ${PORT}`);
+  console.log('Servidor corriendo en puerto ' + PORT);
 });
    
-           
