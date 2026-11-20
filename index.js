@@ -2,11 +2,10 @@ const express = require('express');
 const app = express();
 app.use(express.json());
 
-// Memoria de conversaciones por cliente y bloqueo cuando pasa a Hugo Vélez
 const sesiones = new Map();
 const bloqueados = new Map();
 
-const SYSTEM_PROMPT = `Eres el asistente comercial oficial de IMPOR REPUESTOS S.C.A., empresa importadora y comercializadora directa de repuestos automotrices desde Brasil hacia toda Colombia.
+const SYSTEM_PROMPT = `Eres el asistente comercial oficial de IMPOR REPUESTOS S.C.A., importadora directa de repuestos automotrices desde Brasil hacia toda Colombia.
 
 UBICACIONES Y CONTACTO:
 - Sede Principal: Aeropuerto Internacional de Tabatinga, Hangar 1 (Frontera Colombia - Brasil).
@@ -39,9 +38,7 @@ REGLAS DE ATENCIÓN (CUMPLIMIENTO ESTRICTO):
 
 app.post('/webhook', async (req, res) => {
   try {
-    // Detectar si el mensaje viene de AutoResponder WA o de Meta API
     const esAutoResponder = Boolean(req.body.query && req.body.query.message);
-    
     let remitente = '';
     let mensajeCliente = '';
 
@@ -60,20 +57,17 @@ app.post('/webhook', async (req, res) => {
       return esAutoResponder ? res.json({ replies: [] }) : res.sendStatus(200);
     }
 
-    // Si el chat ya fue transferido a Hugo Vélez en las últimas 2 horas, el bot guarda silencio
     const tiempoBloqueo = bloqueados.get(remitente);
     if (tiempoBloqueo && Date.now() - tiempoBloqueo < 2 * 60 * 60 * 1000) {
       return esAutoResponder ? res.json({ replies: [] }) : res.sendStatus(200);
     }
 
-    // Recuperar o iniciar historial del cliente
     if (!sesiones.has(remitente)) {
       sesiones.set(remitente, []);
     }
     const historial = sesiones.get(remitente);
     historial.push({ role: 'user', content: mensajeCliente });
 
-    // Mantener solo los últimos 8 mensajes para evitar saturar tokens
     if (historial.length > 8) {
       historial.splice(0, historial.length - 8);
     }
@@ -98,16 +92,51 @@ app.post('/webhook', async (req, res) => {
     const data = await response.json();
 
     if (!response.ok || !data.choices?.[0]?.message?.content) {
-      console.error('Error OpenAI:', JSON.stringify(data));
       throw new Error('Fallo en respuesta de OpenAI');
     }
 
     const respuestaBot = data.choices[0].message.content.trim();
     historial.push({ role: 'assistant', content: respuestaBot });
 
-    // Si el bot escala el caso a Hugo Vélez, activar bloqueo automático
     if (respuestaBot.includes('Hugo Vélez')) {
       bloqueados.set(remitente, Date.now());
     }
 
+    if (esAutoResponder) {
+      return res.json({
+        replies: [{ message: respuestaBot }]
+      });
+    }
+
+    return res.sendStatus(200);
+
+  } catch (error) {
+    if (req.body?.query) {
+      return res.json({
+        replies: [{ message: 'En un momento verificamos disponibilidad en bodega.' }]
+      });
+    }
+    return res.sendStatus(200);
+  }
+});
+
+app.get('/webhook', (req, res) => {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+  if (mode === 'subscribe' && token === process.env.VERIFY_TOKEN) {
+    return res.status(200).send(challenge);
+  }
+  return res.sendStatus(403);
+});
+
+app.get('/', (req, res) => {
+  res.status(200).send('Bot IMPOR REPUESTOS S.C.A. activo');
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Servidor corriendo en puerto ${PORT}`);
+});
+   
            
