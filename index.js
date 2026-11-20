@@ -72,14 +72,14 @@ app.post('/webhook', async (req, res) => {
       historial.splice(0, historial.length - 8);
     }
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': 'Bearer ' + process.env.OPENAI_API_KEY,
+        'Authorization': 'Bearer ' + process.env.GROQ_API_KEY,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'llama-3.3-70b-versatile',
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
           ...historial
@@ -92,8 +92,8 @@ app.post('/webhook', async (req, res) => {
     const data = await response.json();
 
     if (!response.ok || !data.choices?.[0]?.message?.content) {
-      console.error('DETALLE ERROR OPENAI:', JSON.stringify(data));
-      throw new Error('Fallo en respuesta de OpenAI');
+      console.error('DETALLE ERROR GROQ:', JSON.stringify(data));
+      throw new Error('Fallo en respuesta de Groq');
     }
 
     const respuestaBot = data.choices[0].message.content.trim();
@@ -140,4 +140,4 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log('Servidor corriendo en puerto ' + PORT);
 });
-   
+     
